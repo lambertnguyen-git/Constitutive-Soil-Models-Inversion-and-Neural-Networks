@@ -1,30 +1,12 @@
-name: eosc-556B
+name: eosc-capstone
 channels:
   - conda-forge
 dependencies:
   - python=3.11
-  - choclo>=0.3.0
-  - discretize>=0.12
-  - empymod>=2.0.0
-  - geoana>=0.8.1
-  - ipywidgets
-  - jupyter
-  - numpy>=1.22
+  - numpy
   - matplotlib
-  - pandas
-  - pymatsolver>=0.3
-  - pytest
-  - scikit-learn>=1.2
-  - scipy>=1.12
-  - scooby
-  - simpeg
-  - sympy
+  - scipy
+  - jupyter
   - pip
   - pip:
     - disba
-# solver
-# uncomment the next line if you are on an intel platform
-#  - pydiso # if on intel pc
-# uncomment this line if you want to install mumps solvers
-  - python-mumps
-
