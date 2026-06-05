@@ -1,14 +1,16 @@
 import numpy as np
+import os
 import matplotlib.pyplot as plt
 from scipy.optimize import brentq
+from scipy.interpolate import interp1d
 """ 
-These functions were adapted from a Constiutive Model MATLAB author by Prof. Mahdi Taiebat, Drs. Ming Yang & Andres Reyes, and Mr. Sheng Zeng.
+Some functions were adapted from a Constitutive Model MATLAB author by Prof. Mahdi Taiebat, Drs. Ming Yang & Andres Reyes, and Mr. Sheng Zeng.
 """
 
 
 def stress_invariants(sigm):
     """
-    Returns first invariant J1, second invariant J2D, and Lode angle theta (MC)
+    Returns first invariant J1, second invariant J2D, and Lode angle theta (MC) - used in YS
     """
     J1 = sigm[0] + sigm[1] + sigm[2]
 
@@ -220,25 +222,10 @@ def Bardet_triaxial(sigm, C, deps_axial, inc_frac, load_tag):
 
     return deps, dsigm
 
-def MC_forward(K, G, phi_deg, psi_deg, c, sigma3, eps_max=0.25, n_steps=1000, load_tag=110):
-    """
-    Mohr-Coulomb forward model for drained triaxial test
-    Inputs:
-        K       : bulk modulus (kPa)
-        G       : shear modulus (kPa)
-        phi_deg : friction angle (°)
-        psi_deg : dilation angle (°)
-        c       : cohesion (kPa)
-        sigma3  : confining stress (kPa)
-        eps_max : maximum axial strain (%)
-        n_steps : number of strain increments
-        load_tag : 110 - drained triaxial, 100 - undrained triaxial, 10 - isotropic consolidation
-    Returns:
-        q_out       = sigma_a - sigma_r (kPa)
-        eps_q_out   = 2/3*(eps_a - eps_r) (%)
-        eps_v_out   = eps1+eps2+eps3 (%) 
-        p_out       = (s1+s2+s3)/3 (kPa)
-    """
+def MC_forward(params, c, sigma3, eps_max=0.25, n_steps=1000, load_tag=110, obs_eps1=None):
+
+    K, G, phi_deg, psi_deg = params
+
     phi = np.radians(phi_deg)
     psi = np.radians(psi_deg)
 
@@ -246,10 +233,9 @@ def MC_forward(K, G, phi_deg, psi_deg, c, sigma3, eps_max=0.25, n_steps=1000, lo
 
     deps_axial = eps_max / n_steps
 
-    # initial stress state — isotropic consolidation at sigma3
-    # sigm = [sigma_r, sigma_r, sigma_a, 0, 0, 0]
-    sigm = np.array([sigma3, sigma3, sigma3, 0., 0., 0.])
-    eps  = np.zeros(6)
+    # initial stress state
+    sigm = np.array([sigma3, sigma3, sigma3, 0, 0, 0]) #confining pressure
+    eps  = np.zeros(6)  #
 
     q_out     = np.zeros(n_steps)
     eps_q_out = np.zeros(n_steps)
@@ -264,7 +250,7 @@ def MC_forward(K, G, phi_deg, psi_deg, c, sigma3, eps_max=0.25, n_steps=1000, lo
         sigm_trial = sigm + dsigm_trial
         f_pred     = yield_surface_MC(sigm_trial, phi, c)
 
-        if f_pred <= 0.:
+        if f_pred <= 0:
             # elastic (inside YS)
             sigm = sigm_trial
             eps  = eps + deps_trial
@@ -314,6 +300,13 @@ def MC_forward(K, G, phi_deg, psi_deg, c, sigma3, eps_max=0.25, n_steps=1000, lo
         eps_v_out[i] = eps_v
         p_out[i]     = p
 
+    if obs_eps1 is not None:
+        eps1_pred = np.linspace(0., eps_max, n_steps)
+        q_out     = interp1d(eps1_pred, q_out, bounds_error=False, fill_value='extrapolate')(obs_eps1)
+        eps_v_out = interp1d(eps1_pred, eps_v_out, bounds_error=False, fill_value='extrapolate')(obs_eps1)
+        eps_q_out = interp1d(eps1_pred, eps_q_out, bounds_error=False, fill_value='extrapolate')(obs_eps1)
+        p_out     = interp1d(eps1_pred, p_out, bounds_error=False, fill_value='extrapolate')(obs_eps1)
+
     return q_out, eps_q_out, eps_v_out, p_out
 
 def plot_MC(q, eps_q, eps_v, p, label='MC', color='b'):
@@ -359,3 +352,163 @@ def plot_MC(q, eps_q, eps_v, p, label='MC', color='b'):
     plt.show()
     
     return fig
+
+def loader_drained(filename, data_dir=None):
+    #for TMD format
+    
+    filepath    = os.path.join(data_dir, filename) if data_dir else filename
+    data        = np.loadtxt(filepath, skiprows=3)
+   
+    epsa    = data[:, 0] / 100
+    epsv    = data[:, 1] / 100
+    e       = data[:, 4]
+    q       = data[:, 5] #kPa
+    p       = data[:, 6] #kPa
+
+    sigma3  = p[0] - q[0] / 3
+    epsr    = (epsv - epsa) / 2
+    epsq    = 2/3 * (epsa - epsr)
+    
+    return {
+        'epsa'  : epsa,
+        'epsv'  : epsv,
+        'epsq' : epsq,
+        'e'     : e,
+        'p'     : p,
+        'q'     : q,
+        'sigma3': sigma3}
+
+def loader_undrained(filename, data_dir=None):
+    #for TMU format
+    
+    filepath    = os.path.join(data_dir, filename) if data_dir else filename
+    data        = np.loadtxt(filepath, skiprows=3)
+   
+    epsa    = data[:, 0] / 100
+    u       = data[:, 1] #kPa
+    p       = data[:, 6] #kPa
+    q       = data[:, 7] #kPa
+    epsv   = np.zeros(len(epsa))  # undrained
+    e      = np.full(len(q), np.nan)
+
+    sigma3      = p[0] - q[0] / 3
+    epsr   = (epsv - epsa) / 2
+    epsq   = 2/3 * (epsa - epsr)
+    
+    return {
+        'epsa'  : epsa,
+        'epsv'  : epsv,
+        'epsq' : epsq,
+        'e'     : e,
+        'u'     : u,        
+        'p'     : p,
+        'q'     : q,
+        'sigma3': sigma3}
+
+def grad_hess_function(params, dobs, c=0, ws=1.0, wphys=1.0, soiltype = 'sand'):
+# Taylor Series approx for 2nd derivative: [ f(x+h) - 2f(x) + f(x-h) ] / h^2
+    
+    grad = np.zeros(len(params))
+    hess = np.zeros(len(params))
+    sigma3 = dobs['sigma3']
+    obs_eps1=dobs['epsa']
+
+    q_now, _, eps_v_now, _  =   MC_forward(params, c, sigma3, eps_max=obs_eps1.max(), n_steps=1000, load_tag=110, obs_eps1=obs_eps1)
+    dpred_now = {'q': q_now, 'epsv': eps_v_now}
+    phi_now, *_ = objective_function(params, dobs, dpred_now, ws=ws, wphys=wphys, soiltype=soiltype)
+    
+
+    for i in range(len(params)):
+
+        dx_frac = 0.01  # scales pertubation size of 1% of parameter value
+        dx = dx_frac * abs(params[i]) if abs(params[i]) > 1e-10 else dx_frac
+        params_up = params.copy()
+        params_up[i] += dx
+        params_down = params.copy()
+        params_down[i] -= dx
+
+        try:    
+            q_up, _, eps_v_up, _ = MC_forward(params_up, c, sigma3, eps_max=obs_eps1.max(), n_steps=1000, load_tag=110, obs_eps1=obs_eps1)
+            dpred_up = {'q': q_up, 'epsv': eps_v_up}
+            phi_up, *_ = objective_function(params_up, dobs, dpred_up, ws=ws, wphys=wphys, soiltype=soiltype)
+
+            q_down, _, eps_v_down, _ = MC_forward(params_down, c, sigma3, eps_max=obs_eps1.max(), n_steps=1000, load_tag=110, obs_eps1=obs_eps1)
+            dpred_down = {'q': q_down, 'epsv': eps_v_down}
+            phi_down, *_ = objective_function(params_down, dobs, dpred_down, ws=ws, wphys=wphys, soiltype=soiltype)
+            
+            grad[i] = (phi_up - phi_down) / (2 * dx)
+            hess[i] = (phi_up - 2*phi_now + phi_down) / (dx**2)
+        
+        except Exception:
+            hess[i] = 0.0
+            grad[i] = 0.0
+    
+    return grad, hess
+
+def newton_inversion(params_init, dobs, c=0, ws=1, wphys=1, soiltype='sand', max_iter=100, tol_phi=1e-4, tol_hess=1e-4):
+
+    params_now  = np.array(params_init, dtype=float)
+    sigma3_obs  = dobs['sigma3']
+    epsa_obs    = dobs['epsa']
+
+    q_now, _, eps_v_now, _ = MC_forward(params_now, c, sigma3_obs, eps_max=epsa_obs.max(), n_steps=1000, load_tag=110, obs_eps1=epsa_obs)
+    
+    dpred_now = {'q': q_now, 'epsv': eps_v_now}
+    phi_now, *_        = objective_function(params_now, dobs, dpred_now, ws, wphys, soiltype)
+    grad_now, hess_now = grad_hess_function(params_now, dobs, c, ws, wphys, soiltype)
+
+    phi_diff = 9999
+    phi_history = [phi_now]
+    i = 0
+
+    while (phi_diff > tol_phi) and (i < max_iter):
+        i += 1
+        n_half = 0
+        damping = 1.0 #reset at each iteration - damping used to halve the newton step
+
+        step = np.array([-grad_now[j] / hess_now[j] if abs(hess_now[j]) > tol_hess else 0
+                         for j in range(len(params_now))])
+
+        while n_half < 20:
+            params_update    = params_now + damping * step
+            params_update[0] = max(params_update[0], 1000)
+            params_update[1] = max(params_update[1], 500)
+            params_update[2] = max(params_update[2], 20)
+            params_update[3] = max(params_update[3], 0)
+
+            try: 
+                q_update, _, eps_v_update, _ = MC_forward(params_update, c, sigma3_obs, eps_max=epsa_obs.max(), n_steps=1000, load_tag=110, obs_eps1=epsa_obs)
+                dpred_update = {'q': q_update, 'epsv': eps_v_update}
+                phi_update, *_ = objective_function(params_update, dobs, dpred_update, ws, wphys, soiltype)
+            except Exception:
+                damping *= 0.5
+                n_half += 1
+                continue      
+
+            if phi_update < phi_now:
+                phi_diff   = abs(phi_update - phi_now)
+                params_now = params_update
+                phi_now    = phi_update
+                grad_now, hess_now = grad_hess_function(params_now, dobs, c, ws, wphys, soiltype)
+                phi_history.append(phi_update)
+                break
+            damping *= 0.5
+            n_half += 1
+
+        if n_half == 20:
+            print(f"Line search failed at iteration {i} — stopping")
+            break
+
+    q_final, _, eps_v_final, p_final = MC_forward(params_now, c, sigma3_obs, eps_max=epsa_obs.max(), n_steps=1000, load_tag=110, obs_eps1=epsa_obs)
+    dpred_final = {'q': q_final, 'epsv': eps_v_final, 'p': p_final}
+    phi_final, phi_q, phi_epsv, phi_s, phi_phys = objective_function(params_now, dobs, dpred_final, ws, wphys, soiltype)
+
+    K_opt, G_opt, phi_opt, psi_opt = params_now
+    print(f"Converged in {i} iterations")
+    print(f"K   = {K_opt/1000:.1f} MPa")
+    print(f"G   = {G_opt/1000:.1f} MPa")
+    print(f"phi = {phi_opt:.2f}°")
+    print(f"psi = {psi_opt:.2f}°")
+    print(f"phi_total = {phi_final:.4f}")
+
+    return params_now, phi_history, dpred_final
