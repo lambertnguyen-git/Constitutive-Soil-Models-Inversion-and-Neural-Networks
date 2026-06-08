@@ -3,6 +3,8 @@ import os
 import matplotlib.pyplot as plt
 from scipy.optimize import brentq
 from scipy.interpolate import interp1d
+import matplotlib.ticker as ticker
+
 """ 
 Some functions were adapted from a Constitutive Model MATLAB author by Prof. Mahdi Taiebat, Drs. Ming Yang & Andres Reyes, and Mr. Sheng Zeng.
 """
@@ -405,3 +407,14 @@ def loader_undrained(filename, data_dir=None):
         'q'     : q,
         'sigma3': sigma3}
 
+def plot_convergence(test, phi_history, output_dir):
+    fig, ax = plt.subplots(figsize=(6, 4))
+    ax.plot(phi_history, 'b-o', markersize=4)
+    ax.set_xlabel('Iteration'); ax.set_ylabel('Objective φ')
+    ax.set_title(f'{test} — Convergence')
+    ax.set_yscale('log')
+    ax.xaxis.set_major_locator(ticker.MaxNLocator(integer=True))
+    ax.grid(True, alpha=0.3)
+    plt.tight_layout()
+    plt.savefig(os.path.join(output_dir, f'{test}_iterations.png'), dpi=150, bbox_inches='tight')
+    plt.close()
