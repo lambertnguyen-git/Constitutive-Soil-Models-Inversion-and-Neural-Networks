@@ -4,7 +4,8 @@
 >WORK IN PROGRESS - README NOT READY
 
 Run this project in your browser:
-[![Binder](https://mybinder.org/badge_logo.svg)] #N/A
+[![Binder](https://mybinder.org/badge_logo.svg)](https://mybinder.org/v2/gh/lambertnguyen-git/Constitutive-Soil-Models-Inversion-and-Neural-Networks/HEAD?urlpath=%2Fdoc%2Ftree%2FConstitutiveModel_Inversion.ipynb)
+
 
 ## REPOSITORY COMPONENTS
 
