@@ -7,6 +7,9 @@ dependencies:
   - matplotlib
   - scipy
   - jupyter
+  - pandas
+  - scikit-learn
+  - openpyxl
   - pip
   - pip:
     - disba

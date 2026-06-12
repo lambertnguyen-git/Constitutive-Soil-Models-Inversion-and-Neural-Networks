@@ -418,3 +418,21 @@ def plot_convergence(test, phi_history, output_dir):
     plt.tight_layout()
     plt.savefig(os.path.join(output_dir, f'{test}_iterations.png'), dpi=150, bbox_inches='tight')
     plt.close()
+
+def rmse(target,prediction):
+    return(np.sqrt(((target - prediction)**2).sum()/len(target)))
+
+def yield_surface_MCC(sigm, M, p0):
+    """
+    Modified Cam Clay
+    f = 3*J2D - M^2 * p * (p0 - p)
+
+    Returns:
+        f < 0 : elastic (inside YS)
+        f = 0 : on YS
+        f > 0 : not possible (outside YS)
+    """
+    J1, J2D, _ = stress_invariants(sigm)
+    p = J1 / 3
+    f = 3 * J2D - M**2 * p * (p0 - p)
+    return f

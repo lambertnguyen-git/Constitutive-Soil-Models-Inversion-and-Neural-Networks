@@ -38,8 +38,9 @@ conda env create -f environment.yml
 conda activate eosc-capstone
 ```
 > WINDOWS USERS: you may have to adjust the environment file from python-mumps to -pydiso
+
 **3. Run the inversion notebook.**
-Open `ConstitutiveModel_Inversion.ipynb` and run all cells top to bottom.
+Open `Inversion_MC.ipynb` or `Inversion_MCC.ipynb` and run all cells top to bottom.
 
 Expected outputs:
 - Per-test fit plots saved to `outputs/TMD#_plots.png`
@@ -48,7 +49,7 @@ Expected outputs:
 - Results saved to `outputs/MC_inversion_results.xlsx`
 
 **4. Run the neural network notebook:**
-Open `NN.ipynb` and run all cells top to bottom.
+Open `NeuralNetwork_MC.ipynb` or `NeuralNetwork_MCC.ipynb` and run all cells top to bottom.
 
 ## NEXT STEPS
  
