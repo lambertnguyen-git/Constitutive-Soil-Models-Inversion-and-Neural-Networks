@@ -436,3 +436,144 @@ def yield_surface_MCC(sigm, M, p0):
     p = J1 / 3
     f = 3 * J2D - M**2 * p * (p0 - p)
     return f
+
+def fnormal_MCC(sigm, M, p0):
+    J1, J2D, _ = stress_invariants(sigm)
+    p = J1 / 3.
+    I = np.array([1., 1., 1., 0., 0., 0.])
+    s = sigm - p * I
+    dfds = 3 * s + ((-M**2 * (p0 - 2*p)) * I / 3)
+    return dfds
+
+def plasticModulus_MCC(sigm, M, p0, e, lam, kap):
+    J1, _, _ = stress_invariants(sigm)
+    p = J1 / 3
+    Kp = M**4*p*(e+1)/(lam-kap)*p0*(2.*p-p0)
+    return Kp
+
+def crosspoint_MCC(sigm, dsigm, M, p0):
+    def f(beta):
+        stress_at_beta = sigm + beta * dsigm
+        return yield_surface_MCC(sigm + beta * dsigm, M, p0)
+
+    f0 = f(0.0)
+    f1 = f(1.0)
+
+    if f0 >= 0.0:
+        return 0.0      # on or outside YS
+    if f1 <= 0.0:
+        return 1.0      # inside YS
+
+    beta = brentq(f, 0.0, 1.0, xtol=1e-10)
+    return beta
+
+def MCC_forward(params, sigma3, eps_max=0.25, n_steps=1000, load_tag=110, obs_eps1=None):
+
+    Mval, lam, kap, nu, e0, p0_in = params
+    deps_axial = eps_max / n_steps
+
+    # initial stress state
+    sigm = np.array([sigma3, sigma3, sigma3, 0, 0, 0]) #confining pressure
+    eps  = np.zeros(6)
+    e = e0
+    p0 = p0_in  
+
+    q_out     = np.zeros(n_steps)
+    eps_q_out = np.zeros(n_steps)
+    eps_v_out = np.zeros(n_steps)
+    p_out     = np.zeros(n_steps)
+
+    for i in range(n_steps):
+
+        p_now = max((sigm[0] + sigm[1] + sigm[2]) / 3., 1e-3)
+        K     = (1. + e) * p_now / kap #stress dependent stiffness - 19.3 Puzrin
+        G     = 3. * (1. - 2.*nu) * K / (2. * (1. + nu))
+        Cel   = C_elastic(K, G)
+        # elastic trial step
+        deps_trial, dsigm_trial = Bardet_triaxial(sigm, Cel, deps_axial, inc_frac=1.0, load_tag=load_tag)
+
+        sigm_trial = sigm + dsigm_trial
+        f_pred     = yield_surface_MCC(sigm_trial, Mval, p0)
+
+        if f_pred <= 0:
+            # elastic (inside YS)
+            sigm = sigm_trial
+            eps  = eps + deps_trial
+            # void ratio update
+            deps_v = deps_trial[0] + deps_trial[1] + deps_trial[2]
+            e = e - (1 + e) * deps_v
+
+        else:
+            # elastoplastic (on YS)
+            f_start = yield_surface_MCC(sigm, Mval, p0)
+
+            # check if already on yield surface
+            if f_start >= 0.:
+                beta = 0.0          # already on surface
+            else:
+                beta = crosspoint_MCC(sigm, dsigm_trial, Mval, p0)
+
+            # apply elastic portion
+            sigm = sigm + beta * dsigm_trial
+            eps  = eps  + beta * deps_trial
+            deps_v_e = beta * deps_trial[0] + beta * deps_trial[1] + beta * deps_trial[2]
+            e = e - (1 + e) * deps_v_e
+
+            p_now = max((sigm[0] + sigm[1] + sigm[2]) / 3., 1e-3)
+            K     = (1. + e) * p_now / kap
+            G     = 3. * (1. - 2.*nu) * K / (2. * (1. + nu))
+            Cel   = C_elastic(K, G)
+            
+            # gradients at yield point
+            dfds = fnormal_MCC(sigm, Mval, p0)
+            dgds = dfds.copy() #associated flow dfds = dgds
+
+            Kp   = plasticModulus_MCC(sigm, Mval, p0, e, lam, kap)
+
+            # elastoplastic stiffness Cepl
+            temp1 = Cel @ dgds
+            temp2 = Cel @ dfds
+            denom = Kp + dfds @ temp1
+            Cepl  = Cel - np.outer(temp1, temp2) / denom
+
+            # plastic portion
+            inc_frac           = 1.0 - beta
+            deps, dsigm_pl     = Bardet_triaxial(sigm, Cepl, deps_axial, inc_frac, load_tag=load_tag)
+
+            sigm = sigm + dsigm_pl
+            eps  = eps  + deps
+
+            #void ratio update
+            deps_v_total = deps[0] + deps[1] + deps[2]
+            e = e - (1. + e) * deps_v_total
+
+            # plastic multiplier
+            deps_v_e2 = -(dsigm_pl[0] + dsigm_pl[1] + dsigm_pl[2]) / (3. * K + 1e-9)
+            deps_v_p  = deps_v_total - deps_v_e2
+            p_cur     = max((sigm[0] + sigm[1] + sigm[2]) / 3., 1e-3)
+            if abs(2.*p_cur - p0) > 1e-10:
+                Loadindex = deps_v_p * (lam - kap) / ((1. + e) * p0 * (2.*p_cur - p0) + 1e-10)
+            else:
+                Loadindex = 0.
+            dp0   = Loadindex * (1. + e) / (lam - kap) * p0 * (2.*p_cur - p0) * Mval**2
+            p0    = max(p0 + dp0, 1e-3)
+
+        q     = sigm[2] - sigm[0]                  
+        p     = (sigm[0] + sigm[1] + sigm[2]) / 3.
+        eps_q = 2./3. * (eps[2] - eps[0])
+        eps_v = eps[0] + eps[1] + eps[2]
+
+        q_out[i]     = q
+        eps_q_out[i] = eps_q
+        eps_v_out[i] = eps_v
+        p_out[i]     = p
+
+    if obs_eps1 is not None:
+        eps1_pred = np.linspace(0., eps_max, n_steps)
+        q_out     = interp1d(eps1_pred, q_out, bounds_error=False, fill_value='extrapolate')(obs_eps1)
+        eps_v_out = interp1d(eps1_pred, eps_v_out, bounds_error=False, fill_value='extrapolate')(obs_eps1)
+        eps_q_out = interp1d(eps1_pred, eps_q_out, bounds_error=False, fill_value='extrapolate')(obs_eps1)
+        p_out     = interp1d(eps1_pred, p_out, bounds_error=False, fill_value='extrapolate')(obs_eps1)
+
+    return q_out, eps_q_out, eps_v_out, p_out
+

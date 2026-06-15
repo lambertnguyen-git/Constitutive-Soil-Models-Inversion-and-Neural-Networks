@@ -8,7 +8,7 @@ Run this project in your browser:
 
 
 ## REPOSITORY COMPONENTS
-
+1. **
 
 
 
@@ -21,6 +21,8 @@ Calibrating constitutive soil model parameters from laboratory triaxial test dat
 The Mohr-Coulomb (MC) model is used as the primary constitutive model, applied to the publicly available Wichtmann Karlsruhe fine sand triaxial database. A key finding is that MC's limitations — stress-independent stiffness and inability to model plastic compression — are quantifiable through the inversion residuals.
 
 The Modified Cam Clay (MCC) model was also used 
+
+
  
 ## USAGE 
 **0. Run the Binder**
