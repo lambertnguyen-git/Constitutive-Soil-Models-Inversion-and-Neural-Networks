@@ -482,6 +482,7 @@ def MCC_forward(params, sigma3, eps_max=0.25, n_steps=1000, load_tag=110, obs_ep
     eps_q_out = np.zeros(n_steps)
     eps_v_out = np.zeros(n_steps)
     p_out     = np.zeros(n_steps)
+    e_out     = np.zeros(n_steps)
 
     for i in range(n_steps):
 
@@ -508,7 +509,7 @@ def MCC_forward(params, sigma3, eps_max=0.25, n_steps=1000, load_tag=110, obs_ep
             f_start = yield_surface_MCC(sigm, Mval, p0)
 
             # check if already on yield surface
-            if f_start >= 0.:
+            if f_start >= 0:
                 beta = 0.0          # already on surface
             else:
                 beta = crosspoint_MCC(sigm, dsigm_trial, Mval, p0)
@@ -529,7 +530,7 @@ def MCC_forward(params, sigma3, eps_max=0.25, n_steps=1000, load_tag=110, obs_ep
             dgds = dfds.copy() #associated flow dfds = dgds
 
             Kp   = plasticModulus_MCC(sigm, Mval, p0, e, lam, kap)
-
+        
             # elastoplastic stiffness Cepl
             temp1 = Cel @ dgds
             temp2 = Cel @ dfds
@@ -546,7 +547,15 @@ def MCC_forward(params, sigma3, eps_max=0.25, n_steps=1000, load_tag=110, obs_ep
             #void ratio update
             deps_v_total = deps[0] + deps[1] + deps[2]
             e = e - (1. + e) * deps_v_total
+            
+            temp3     = Cel @ deps
+            Loadindex = (dfds @ temp3) / (denom + 1e-10)
 
+            if Loadindex > 0:
+                p_cur = max((sigm[0] + sigm[1] + sigm[2]) / 3., 1e-3)
+                dp0   = Loadindex * (1. + e) / (lam - kap) * p0 * (2.*p_cur - p0) * Mval**2
+                p0    = max(p0 + dp0, 1e-3)
+            
             # plastic multiplier
             deps_v_e2 = -(dsigm_pl[0] + dsigm_pl[1] + dsigm_pl[2]) / (3. * K + 1e-9)
             deps_v_p  = deps_v_total - deps_v_e2
@@ -567,6 +576,7 @@ def MCC_forward(params, sigma3, eps_max=0.25, n_steps=1000, load_tag=110, obs_ep
         eps_q_out[i] = eps_q
         eps_v_out[i] = eps_v
         p_out[i]     = p
+        e_out[i]     = e
 
     if obs_eps1 is not None:
         eps1_pred = np.linspace(0., eps_max, n_steps)
@@ -575,5 +585,5 @@ def MCC_forward(params, sigma3, eps_max=0.25, n_steps=1000, load_tag=110, obs_ep
         eps_q_out = interp1d(eps1_pred, eps_q_out, bounds_error=False, fill_value='extrapolate')(obs_eps1)
         p_out     = interp1d(eps1_pred, p_out, bounds_error=False, fill_value='extrapolate')(obs_eps1)
 
-    return q_out, eps_q_out, eps_v_out, p_out
+    return q_out, eps_q_out, eps_v_out, p_out, e_out
 
