@@ -544,28 +544,18 @@ def MCC_forward(params, sigma3, eps_max=0.25, n_steps=1000, load_tag=110, obs_ep
             sigm = sigm + dsigm_pl
             eps  = eps  + deps
 
-            #void ratio update
+            # void ratio update
             deps_v_total = deps[0] + deps[1] + deps[2]
             e = e - (1. + e) * deps_v_total
             
+            # plastic multiplier (L)
             temp3     = Cel @ deps
-            Loadindex = (dfds @ temp3) / (denom + 1e-10)
+            Loadindex = (dfds @ temp3) / (denom + 1e-10)  # consistency condition
 
             if Loadindex > 0:
                 p_cur = max((sigm[0] + sigm[1] + sigm[2]) / 3., 1e-3)
                 dp0   = Loadindex * (1. + e) / (lam - kap) * p0 * (2.*p_cur - p0) * Mval**2
                 p0    = max(p0 + dp0, 1e-3)
-            
-            # plastic multiplier
-            deps_v_e2 = -(dsigm_pl[0] + dsigm_pl[1] + dsigm_pl[2]) / (3. * K + 1e-9)
-            deps_v_p  = deps_v_total - deps_v_e2
-            p_cur     = max((sigm[0] + sigm[1] + sigm[2]) / 3., 1e-3)
-            if abs(2.*p_cur - p0) > 1e-10:
-                Loadindex = deps_v_p * (lam - kap) / ((1. + e) * p0 * (2.*p_cur - p0) + 1e-10)
-            else:
-                Loadindex = 0.
-            dp0   = Loadindex * (1. + e) / (lam - kap) * p0 * (2.*p_cur - p0) * Mval**2
-            p0    = max(p0 + dp0, 1e-3)
 
         q     = sigm[2] - sigm[0]                  
         p     = (sigm[0] + sigm[1] + sigm[2]) / 3.
@@ -584,6 +574,7 @@ def MCC_forward(params, sigma3, eps_max=0.25, n_steps=1000, load_tag=110, obs_ep
         eps_v_out = interp1d(eps1_pred, eps_v_out, bounds_error=False, fill_value='extrapolate')(obs_eps1)
         eps_q_out = interp1d(eps1_pred, eps_q_out, bounds_error=False, fill_value='extrapolate')(obs_eps1)
         p_out     = interp1d(eps1_pred, p_out, bounds_error=False, fill_value='extrapolate')(obs_eps1)
+        e_out     = interp1d(eps1_pred, e_out,     bounds_error=False, fill_value='extrapolate')(obs_eps1)
 
     return q_out, eps_q_out, eps_v_out, p_out, e_out
 
