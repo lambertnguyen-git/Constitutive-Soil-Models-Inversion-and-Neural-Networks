@@ -521,7 +521,7 @@ def MCC_forward(params, sigma3, eps_max=0.25, n_steps=1000, load_tag=110, obs_ep
             e = e - (1 + e) * deps_v_e
 
             p_now = max((sigm[0] + sigm[1] + sigm[2]) / 3., 1e-3)
-            K     = (1. + e) * p_now / kap
+            K     = (1. + e) * p_now / max(kap, 1e-4)
             G     = 3. * (1. - 2.*nu) * K / (2. * (1. + nu))
             Cel   = C_elastic(K, G)
             
