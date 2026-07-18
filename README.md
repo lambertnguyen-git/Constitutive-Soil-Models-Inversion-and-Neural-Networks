@@ -4,8 +4,8 @@
 Run this project in your browser:
 [![Binder](https://mybinder.org/badge_logo.svg)](https://mybinder.org/v2/gh/lambertnguyen-git/Constitutive-Soil-Models-Inversion-and-Neural-Networks/HEAD?urlpath=%2Fdoc%2Ftree%2FInversion_MC.ipynb)
 
-## Reporting
-This code is meant to accompany a the report: Inversion and Neural Network Methods for Constitutive Model Parameter Identification, by L. Nguyen (July 2026).
+## REPORTING
+This code is meant to accompany the report: Inversion and Neural Network Methods for Constitutive Model Parameter Identification, by L. Nguyen (July 2026).
 References and citations are provided in that report.
 
 ## REPOSITORY COMPONENTS
