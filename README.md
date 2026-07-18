@@ -40,12 +40,12 @@ cd Constitutive-Soil-Models-Inversion-and-Neural-Networks
 conda env create -f environment.yml 
 conda activate eosc-capstone
 ```
-> WINDOWS USERS: you may have to adjust the environment file from python-mumps to -pydiso
+> WINDOWS USERS: you may have to adjust the environment file from python-mumps to pydiso
 
-**3. Run the inversion and neural network notebook.**
+**3. Run the inversion and neural network notebooks.**
 Open `Inversion_MC.ipynb`, `Inversion_MCC.ipynb`, `NeuralNetwork_MC.ipynb`, `NeuralNetwork_MCC.ipynb` and run all cells top to bottom.
 
-Some of these cells are computationally intensive, such as the inversion, synthetic data generation, and neural network training. In some cases, we have saved the model or results at certain steps so that this lengthy processing can be avoided. Notes are provided which cells are required to run.
+Some of these cells are computationally intensive, such as the inversion, synthetic data generation, and neural network training. In some cases, we have saved the model or results at certain steps so that this lengthy processing can be avoided. Notes are provided indicating which cells are required to run.
 
 Expected outputs:
 - Per-test fit plots saved to `outputs/TMD#_plots.png`
