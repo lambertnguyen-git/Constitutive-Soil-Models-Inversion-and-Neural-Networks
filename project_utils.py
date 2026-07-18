@@ -487,7 +487,7 @@ def MCC_forward(params, sigma3, eps_max=0.25, n_steps=1000, load_tag=110, obs_ep
     for i in range(n_steps):
 
         p_now = max((sigm[0] + sigm[1] + sigm[2]) / 3., 1e-3)
-        K     = (1. + e) * p_now / kap #stress dependent stiffness - 19.3 Puzrin
+        K     = (1. + e) * p_now / kap #stress dependent stiffness - 19.28 Puzrin
         G     = 3. * (1. - 2.*nu) * K / (2. * (1. + nu))
         Cel   = C_elastic(K, G)
         # elastic trial step
